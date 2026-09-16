@@ -1,73 +1,250 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"example.com/m/v2/internal/pkg"
+	"example.com/m/v2/internal/adapter/kuka"
+	"example.com/m/v2/internal/adapter/tusk"
+	"example.com/m/v2/internal/repository/memory"
+	"example.com/m/v2/internal/transport/mqtt"
+
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
+	// --------------------------------------------------
+	// 1. 환경변수 로드
+	// --------------------------------------------------
+
+	if err := godotenv.Load(); err != nil {
+		log.Println(".env 파일을 찾을 수 없습니다. 환경변수를 직접 사용합니다.")
+	}
+
+	tusk_broker := os.Getenv("TUSK_BROKER")
+	kuka_broker := os.Getenv("KUKA_BROKER")
+	tuskClientID := os.Getenv("MQTT_TUSK_CLIENT_ID")
+	kukaClientID := os.Getenv("MQTT_KUKA_CLIENT_ID")
+
+	if tusk_broker == "" {
+		log.Fatal("TUSK_BROKER가 설정되지 않았습니다.")
+	}
+	if kuka_broker == "" {
+		log.Fatal("KUKA_BROKER가 설정되지 않았습니다.")
+	}
+
+	if tuskClientID == "" {
+		tuskClientID = "vda5050-tusk-middleware"
+	}
+
+	if kukaClientID == "" {
+		kukaClientID = "vda5050-kuka-middleware"
+	}
+
+	// --------------------------------------------------
+	// 2. Repository 생성
+	// --------------------------------------------------
+
+	robotStore := memory.NewRobotStore()
+
+	log.Println("Robot Repository initialized")
+
+	// --------------------------------------------------
+	// 3. MQTT Router 생성
+	// --------------------------------------------------
+
+	router := mqtt.NewRouter()
+
+	// --------------------------------------------------
+	// 4. TUSK State Handler
+	// --------------------------------------------------
+
+	router.Register(
+		"Tuskrobots",
+		"state",
+		func(vendor, serial, msgType string, payload []byte) {
+
+			var state tusk.State
+
+			if err := json.Unmarshal(payload, &state); err != nil {
+				log.Printf(
+					"[TUSK] State decode failed | robot=%s | error=%v",
+					serial,
+					err,
+				)
+				return
+			}
+
+			// Vendor DTO → Domain
+			domainState := state.ToDomain()
+
+			// Topic에서 받은 serial이 비어있으면 사용
+			if domainState.SerialNumber == "" {
+				domainState.SerialNumber = serial
+			}
+
+			// Repository 저장
+			robotStore.SaveState(domainState)
+
+			log.Printf(
+				"[TUSK STATE] robot=%s battery=%.1f%% position=(%.3f, %.3f) driving=%v",
+				domainState.SerialNumber,
+				domainState.BatteryState.BatteryCharge,
+				domainState.AgvPosition.X,
+				domainState.AgvPosition.Y,
+				domainState.Driving,
+			)
+		},
+	)
+
+	// --------------------------------------------------
+	// 5. KUKA State Handler
+	// --------------------------------------------------
+
+	router.Register(
+		"KUKA",
+		"state",
+		func(vendor, serial, msgType string, payload []byte) {
+
+			var state kuka.State
+
+			if err := json.Unmarshal(payload, &state); err != nil {
+				log.Printf(
+					"[KUKA] State decode failed | robot=%s | error=%v",
+					serial,
+					err,
+				)
+				return
+			}
+
+			// Vendor DTO → Domain
+			domainState := state.ToDomain()
+
+			if domainState.SerialNumber == "" {
+				domainState.SerialNumber = serial
+			}
+
+			// Repository 저장
+			robotStore.SaveState(domainState)
+
+			log.Printf(
+				"[KUKA STATE] robot=%s battery=%.1f%% position=(%.3f, %.3f) driving=%v",
+				domainState.SerialNumber,
+				domainState.BatteryState.BatteryCharge,
+				domainState.AgvPosition.X,
+				domainState.AgvPosition.Y,
+				domainState.Driving,
+			)
+		},
+	)
+
+	// --------------------------------------------------
+	// 6. TUSK MQTT Client 생성
+	// --------------------------------------------------
+
+	tuskClient, err := mqtt.NewClient(
+		tusk_broker,
+		tuskClientID,
+		os.Getenv("MQTT_USERNAME"),
+		os.Getenv("MQTT_PASSWORD"),
+	)
+
 	if err != nil {
-		log.Println("Warning: .env 파일을 찾을 수 없습니다. 시스템 환경변수를 사용합니다.")
+		log.Fatalf("TUSK MQTT 연결 실패: %v", err)
 	}
-	r := pkg.NewRouter()
+
+	log.Println("TUSK MQTT connected")
 
 	// --------------------------------------------------
-	// 1. 핸들러 등록 (벤더 및 메시지 타입별 DTO 바인딩)
+	// 7. KUKA MQTT Client 생성
 	// --------------------------------------------------
-	r.Register("Tuskrobots", "state", func(vendor, serial, msgType string, payload []byte) {
-		log.Printf("[%s:%s] State 수신 (%d bytes)", vendor, serial, len(payload))
-		// var state TuskStateDTO
-		// json.Unmarshal(payload, &state)
-	})
 
-	r.Register("Kukarobots", "state", func(vendor, serial, msgType string, payload []byte) {
-		log.Printf("[%s:%s] Kuka State 처리", vendor, serial)
-	})
+	kukaClient, err := mqtt.NewClient(
+		kuka_broker,
+		kukaClientID,
+		os.Getenv("MQTT_USERNAME"),
+		os.Getenv("MQTT_PASSWORD"),
+	)
 
-	r.Register("Kukarobots", "connection", func(vendor, serial, msgType string, payload []byte) {
-		log.Printf("[%s:%s] Kuka Connection 상태 업데이트", vendor, serial)
-	})
-
-	// --------------------------------------------------
-	// 2. 브로커 연결 (독립 인스턴스)
-	// --------------------------------------------------
-	Tusk_name := os.Getenv("TUSK_NAME")
-	Tusk_password := os.Getenv("TUSK_PASSWORD")
-	tuskClient, err := pkg.NewClient("mqtt://192.168.0.170:1883", "APR_Tusk_Client", Tusk_name, Tusk_password)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("KUKA MQTT 연결 실패: %v", err)
 	}
 
-	Kuka_name := os.Getenv("KUKA_NAME")
-	Kuka_password := os.Getenv("KUKA_PASSWORD")
-	kukaClient, err := pkg.NewClient("mqtt://192.168.0.151:1883", "APR_Kuka_Client", Kuka_name, Kuka_password)
-	if err != nil {
-		log.Fatal(err)
+	log.Println("KUKA MQTT connected")
+
+	// --------------------------------------------------
+	// 8. TUSK Subscribe
+	// --------------------------------------------------
+
+	tuskTopic := "APR/v2/Tuskrobots/+/state"
+
+	if err := tuskClient.Subscribe(
+		tuskTopic,
+		0,
+		func(topic string, payload []byte) {
+
+			log.Printf(
+				"[MQTT RECEIVE] topic=%s payload=%d bytes",
+				topic,
+				len(payload),
+			)
+
+			router.Dispatch(topic, payload)
+		},
+	); err != nil {
+		log.Fatalf("TUSK Subscribe 실패: %v", err)
 	}
 
 	// --------------------------------------------------
-	// 3. 와일드카드 구독 및 라우터 Dispatch 연동
+	// 9. KUKA Subscribe
 	// --------------------------------------------------
-	// go routine 호출 불필요 (Subscribe 내부 토큰으로 동기화 처리)
-	if err := tuskClient.Subscribe("APR/v2/Tuskrobots/+/state", 0, r.Dispatch); err != nil {
-		log.Println(err)
+
+	kukaTopic := "APR/v2/KUKA/+/state"
+
+	if err := kukaClient.Subscribe(
+		kukaTopic,
+		0,
+		func(topic string, payload []byte) {
+
+			log.Printf(
+				"[MQTT RECEIVE] topic=%s payload=%d bytes",
+				topic,
+				len(payload),
+			)
+
+			router.Dispatch(topic, payload)
+		},
+	); err != nil {
+		log.Fatalf("KUKA Subscribe 실패: %v", err)
 	}
 
-	if err := kukaClient.Subscribe("APR/v2/Kukarobots/+/state", 0, r.Dispatch); err != nil {
-		log.Println(err)
-	}
-	if err := kukaClient.Subscribe("APR/v2/Kukarobots/+/connection", 0, r.Dispatch); err != nil {
-		log.Println(err)
-	}
+	// --------------------------------------------------
+	// 10. Middleware 시작
+	// --------------------------------------------------
 
-	// 종료 시그널 대기
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
+	log.Println("======================================")
+	log.Println(" VDA5050 Middleware Started")
+	log.Println("======================================")
+	log.Printf("K-Broker T-Broker : %s %s", kuka_broker, tusk_broker)
+	log.Printf("TUSK   : %s", tuskTopic)
+	log.Printf("KUKA   : %s", kukaTopic)
+
+	// --------------------------------------------------
+	// 11. 종료 Signal 대기
+	// --------------------------------------------------
+
+	sigCh := make(chan os.Signal, 1)
+
+	signal.Notify(
+		sigCh,
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+
+	<-sigCh
+
+	log.Println("Middleware shutting down...")
 }
