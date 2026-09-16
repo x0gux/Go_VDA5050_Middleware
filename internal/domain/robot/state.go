@@ -1,4 +1,4 @@
-package domain
+package robot
 
 type State struct {
 	SerialNumber string `json:"serial_number"`
