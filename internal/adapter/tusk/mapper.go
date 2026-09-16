@@ -1,15 +1,18 @@
 package tusk
 
-func (s *State) ToDomain() State {
-	return State{
+import "example.com/m/v2/internal/domain/robot"
+
+func (s *State) ToDomain() robot.State {
+	return robot.State{
 		SerialNumber:  s.SerialNumber,
 		Manufacturer:  s.Manufacturer,
+		RobotType:     s.Custom.RobotType,
 		OperatingMode: s.OperatingMode,
-		BatteryState: BatteryState{
+		BatteryState: robot.BatteryState{
 			BatteryCharge: s.BatteryState.BatteryCharge,
 			Charging:      s.BatteryState.Charging,
 		},
-		AgvPosition: AgvPosition{
+		AgvPosition: robot.AgvPosition{
 			X: s.AgvPosition.X,
 			Y: s.AgvPosition.Y,
 		},

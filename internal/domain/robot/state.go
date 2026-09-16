@@ -1,19 +1,23 @@
 package robot
 
 type State struct {
-	SerialNumber string `json:"serial_number"`
-	Manufacturer string `json:"manufacturer"`
-	RobotType    string `json:"robot_type"`
+	SerialNumber  string
+	Manufacturer  string
+	RobotType     string
+	OperatingMode string
 
-	OperatingMode string `json:"operating_mode"`
+	BatteryState BatteryState
+	AgvPosition  AgvPosition
+
+	Driving bool
 }
 
 type BatteryState struct {
-	BatteryCharge float64 `json:"battery_charge"`
-	Charging      bool    `json:"charging"`
+	BatteryCharge float64
+	Charging      bool
 }
 
 type AgvPosition struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X float64
+	Y float64
 }
