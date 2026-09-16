@@ -24,3 +24,9 @@ func NewClient(broker, clientID, username, password string) (*Client, error) {
 
 	return &Client{rawClient: c}, nil
 }
+
+func (c *Client) DisConnect(quiesce uint) {
+	if c.rawClient != nil && c.rawClient.IsConnected() {
+		c.rawClient.Disconnect(quiesce)
+	}
+}
