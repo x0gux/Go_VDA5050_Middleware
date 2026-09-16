@@ -1,7 +1,6 @@
 package tusk
 
-import "example.com/m/v2/internal/domain"
-
+// Tusk(VDA5050) 원본 Raw Payload 파싱용 구조체
 type State struct {
 	SerialNumber  string       `json:"serialNumber"`
 	Manufacturer  string       `json:"manufacturer"`
@@ -24,18 +23,4 @@ type AgvPosition struct {
 
 type CustomInfo struct {
 	RobotType string `json:"robotType"`
-}
-
-func (s *State) ToDomain() domain.RobotTypeDTO {
-	return domain.RobotTypeDTO{
-		SerialNumber:  s.SerialNumber,
-		Manufacturer:  s.Manufacturer,
-		RobotType:     s.Custom.RobotType,
-		OperatingMode: s.OperatingMode,
-		BatteryCharge: s.BatteryState.BatteryCharge,
-		Charging:      s.BatteryState.Charging,
-		X:             s.AgvPosition.X,
-		Y:             s.AgvPosition.Y,
-		Driving:       s.Driving,
-	}
 }

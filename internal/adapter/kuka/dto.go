@@ -1,7 +1,5 @@
 package kuka
 
-import "example.com/m/v2/internal/domain"
-
 type State struct {
 	HeaderID      int          `json:"headerId"`
 	Timestamp     string       `json:"timestamp"`
@@ -32,29 +30,4 @@ type Info struct {
 type InfoReference struct {
 	ReferenceKey   string `json:"referenceKey"`
 	ReferenceValue string `json:"referenceValue"`
-}
-
-func (s *State) ToDomain() domain.RobotTypeDTO {
-
-	robotType := "KUKA-AGV"
-	for _, info := range s.Information {
-		for _, ref := range info.InfoReferences {
-			if ref.ReferenceKey == "agvModelName" {
-				robotType = ref.ReferenceValue
-				break
-			}
-		}
-	}
-
-	return domain.RobotTypeDTO{
-		SerialNumber:  s.SerialNumber,
-		Manufacturer:  s.Manufacturer,
-		RobotType:     robotType,
-		OperatingMode: s.OperatingMode,
-		BatteryCharge: s.BatteryState.BatteryCharge,
-		Charging:      s.BatteryState.Charging,
-		X:             s.AgvPosition.X,
-		Y:             s.AgvPosition.Y,
-		Driving:       s.Driving,
-	}
 }
