@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"example.com/m/v2/pkg"
+	"example.com/m/v2/internal/pkg"
 	"github.com/joho/godotenv"
 )
 

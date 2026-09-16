@@ -32,10 +32,9 @@ func NewClient(broker, clientID, username, password string) (*Client, error) {
 	return &Client{rawClient: c}, nil
 }
 
-// Subscribe: 토픽 구독 및 범용 OnMessage 콜백 연결
-func (c *Client) Subscribe(topic string, qos byte) error {
+func (c *Client) Subscribe(topic string, qos byte, handler MessageHandler) error {
 	token := c.rawClient.Subscribe(topic, qos, func(_ mqtt.Client, msg mqtt.Message) {
-		fmt.Println("%s", msg.Payload())
+		handler(msg.Topic(), msg.Payload())
 	})
 
 	if token.Wait() && token.Error() != nil {
