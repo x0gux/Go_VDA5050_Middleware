@@ -33,17 +33,21 @@ Repository
 │   ├── adapter/
 │   │   ├── kuka/
 │   │   │   ├── dto.go
-│   │   │   └── mapper.go
+│   │   │   ├── mapper.go
+│   │   │   └── error.go
+│   │   │
 │   │   └── tusk/
 │   │       ├── dto.go
-│   │       └── mapper.go
+│   │       ├── mapper.go
+│   │       └── error.go
 │   │
 │   ├── config/
+│   │   └── config.go
 │   │
 │   ├── domain/
-│   │   ├── common_Error.go
 │   │   └── robot/
-│   │       └── state.go
+│   │       ├── state.go
+│   │       └── error.go
 │   │
 │   ├── repository/
 │   │   ├── robot_store.go
@@ -51,6 +55,8 @@ Repository
 │   │       └── robot_store.go
 │   │
 │   ├── service/
+│   │   └── error.go
+│   │   └── robot_service.go
 │   │
 │   ├── transport/
 │   │   └── mqtt/
@@ -58,7 +64,8 @@ Repository
 │   │       ├── mqtt_type.go
 │   │       ├── publisher.go
 │   │       ├── router.go
-│   │       └── subscriber.go
+│   │       ├── subscriber.go
+│   │       └── error.go
 │   │
 │   └── vda5050/
 │       └── model/
